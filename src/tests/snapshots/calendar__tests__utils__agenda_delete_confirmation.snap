@@ -20,7 +20,7 @@ expression: self.render()
 │                       │Disposable                                                    │                       │
 │                       │This appointment will be deleted.                             │                       │
 │                       │                                                              │                       │
-│                       │Enter confirm · Esc cancel                                    │                       │
+│                       │Enter confirm · Esc back                                      │                       │
 │                       │                                                              │                       │
 │                       └──────────────────────────────────────────────────────────────┘                       │
 │                                                                                                              │
@@ -36,5 +36,5 @@ expression: self.render()
 │                                                                                                              │
 │                                                                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- j/k  appointments   e  edit   x  delete   Esc  close
+ j/k  appointments   n  new   e  edit   x  delete   v m  views   q  back
 Reloaded 1 events

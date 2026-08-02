@@ -6,7 +6,7 @@ use crate::{
     store::CalendarEvent,
 };
 
-use super::utils::{Harness, Instruction, key};
+use super::utils::{Harness, Instruction, escape, key};
 
 #[test]
 fn navigation_and_week_view_are_driven_by_configured_keys() {
@@ -21,6 +21,35 @@ fn navigation_and_week_view_are_driven_by_configured_keys() {
 
     assert_eq!(harness.app.selected, date(2026, 6, 9));
     assert_eq!(harness.app.view, ViewMode::Week);
+}
+
+#[test]
+fn wasd_navigation_and_prefixed_view_keys_are_available() {
+    let mut harness = Harness::new("wasd_and_view_prefix");
+    harness.run([
+        Instruction::Raw(key('d')),
+        Instruction::Raw(key('s')),
+        Instruction::Raw(key('a')),
+        Instruction::Raw(key('w')),
+    ]);
+    assert_eq!(harness.app.selected, date(2026, 6, 1));
+
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('w'))]);
+    assert_eq!(harness.app.view, ViewMode::Week);
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('m'))]);
+    assert_eq!(harness.app.view, ViewMode::Month);
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('a'))]);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Agenda(_)));
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('w'))]);
+    assert_eq!(harness.app.view, ViewMode::Week);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('a'))]);
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('m'))]);
+    assert_eq!(harness.app.view, ViewMode::Month);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+    harness.run([Instruction::Raw(key('v')), Instruction::Raw(key('a'))]);
+    harness.run([Instruction::Raw(key('n'))]);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Edit(_)));
 }
 
 fn add_timed(harness: &mut Harness, summary: &str, day: jiff::civil::Date, hour: i8) {
@@ -40,6 +69,79 @@ fn selected_event(harness: &Harness) -> &CalendarEvent {
 }
 
 #[test]
+fn q_returns_to_the_default_view_from_every_mode() {
+    let mut normal = Harness::new("back_normal");
+    normal.run([
+        Instruction::Normal(NormalAction::WeekView),
+        Instruction::Raw(key('q')),
+    ]);
+    assert_eq!(normal.app.view, ViewMode::Month);
+    assert!(matches!(normal.app.mode, crate::app::Mode::Normal));
+    assert!(!normal.app.should_quit());
+    normal.run([Instruction::Raw(key('q'))]);
+    assert!(normal.app.should_quit());
+
+    let mut help = Harness::new("back_help");
+    help.run([
+        Instruction::Normal(NormalAction::Help),
+        Instruction::Raw(key('q')),
+    ]);
+    assert!(matches!(help.app.mode, crate::app::Mode::Normal));
+
+    let mut editor = Harness::new("back_editor");
+    editor.run([
+        Instruction::Normal(NormalAction::AddEvent),
+        Instruction::Raw(key('q')),
+    ]);
+    assert!(matches!(editor.app.mode, crate::app::Mode::Normal));
+
+    let mut agenda = Harness::new("back_agenda");
+    agenda.run([
+        Instruction::Normal(NormalAction::OpenAgenda),
+        Instruction::Raw(key('q')),
+    ]);
+    assert!(matches!(agenda.app.mode, crate::app::Mode::Normal));
+
+    let mut confirmation = Harness::new("back_confirmation");
+    add_timed(&mut confirmation, "Disposable", date(2026, 6, 1), 10);
+    confirmation.run([
+        Instruction::Normal(NormalAction::Reload),
+        Instruction::Normal(NormalAction::OpenAgenda),
+        Instruction::Agenda(AgendaAction::Delete),
+        Instruction::Raw(key('q')),
+    ]);
+    assert!(matches!(confirmation.app.mode, crate::app::Mode::Normal));
+}
+
+#[test]
+fn escape_returns_to_the_default_view_from_every_mode() {
+    let mut harness = Harness::new("escape_back");
+    harness.run([
+        Instruction::Normal(NormalAction::WeekView),
+        Instruction::Normal(NormalAction::DefaultView),
+    ]);
+    assert_eq!(harness.app.view, ViewMode::Month);
+
+    harness.run([
+        Instruction::Normal(NormalAction::OpenAgenda),
+        Instruction::Agenda(AgendaAction::Close),
+    ]);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+
+    harness.run([
+        Instruction::Normal(NormalAction::AddEvent),
+        Instruction::Dialog(DialogAction::Cancel),
+    ]);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+
+    harness.run([
+        Instruction::Normal(NormalAction::Help),
+        Instruction::Raw(escape()),
+    ]);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+}
+
+#[test]
 fn agenda_is_centered_on_the_day_and_navigation_crosses_day_boundaries() {
     let mut harness = Harness::new("agenda_navigation");
     add_timed(&mut harness, "Previous day", date(2026, 5, 31), 9);
@@ -51,6 +153,14 @@ fn agenda_is_centered_on_the_day_and_navigation_crosses_day_boundaries() {
         Instruction::Snapshot("centered"),
     ]);
 
+    assert_eq!(selected_event(&harness).summary, "Selected day");
+    harness.run([Instruction::Raw(key('s'))]);
+    assert_eq!(selected_event(&harness).summary, "Following day");
+    harness.run([Instruction::Raw(key('w'))]);
+    assert_eq!(selected_event(&harness).summary, "Selected day");
+    harness.run([Instruction::Raw(key('d'))]);
+    assert_eq!(selected_event(&harness).summary, "Following day");
+    harness.run([Instruction::Raw(key('a'))]);
     assert_eq!(selected_event(&harness).summary, "Selected day");
     harness.run([Instruction::Agenda(AgendaAction::Navigate(Direction::Down))]);
     assert_eq!(selected_event(&harness).summary, "Following day");
@@ -77,6 +187,7 @@ fn agenda_delete_requires_confirmation_and_escape_cancels() {
     assert_eq!(harness.app.events.len(), 1);
 
     harness.run([
+        Instruction::Normal(NormalAction::OpenAgenda),
         Instruction::Agenda(AgendaAction::Delete),
         Instruction::Confirm(ConfirmAction::Confirm),
         Instruction::Snapshot("deleted"),

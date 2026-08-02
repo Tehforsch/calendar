@@ -37,4 +37,4 @@ expression: self.render()
 │              ││              ││              ││              ││              ││              ││              │
 │              ││              ││              ││              ││              ││              ││              │
 └──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘
- a  add   Enter  agenda   m  4-week   w  week   ?  keys   q  quit    2026-06-09 · 0 event(s)
+ n  add   Enter  agenda   v m  4-week   v w  week   ?  keys   Esc  back/quit    2026-06-09 · 0 event(s)

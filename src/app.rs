@@ -279,6 +279,9 @@ impl App {
         }
         if matches!(self.mode, Mode::Help) {
             self.mode = Mode::Normal;
+            self.view = self.config.default_view;
+            self.keep_selection_visible();
+            self.ensure_visible_occurrences_are_cached();
             self.hotkey_handler.reset();
             return Ok(());
         }
@@ -355,7 +358,14 @@ impl App {
                 self.status = Some(format!("Reloaded {} events", self.events.len()));
             }
             NormalAction::Help => self.mode = Mode::Help,
-            NormalAction::Quit => self.should_quit = true,
+            NormalAction::DefaultView => {
+                if self.view == self.config.default_view {
+                    self.should_quit = true;
+                } else {
+                    self.view = self.config.default_view;
+                    self.keep_selection_visible();
+                }
+            }
         }
         self.ensure_visible_occurrences_are_cached();
         Ok(())
@@ -383,6 +393,21 @@ impl App {
                         .date();
                 }
             }
+            AgendaAction::AddEvent => self.open_editor(),
+            AgendaAction::AgendaView => {
+                self.mode = Mode::Agenda(self.build_agenda(self.selected, None));
+            }
+            AgendaAction::MonthView => {
+                self.view = ViewMode::Month;
+                self.mode = Mode::Normal;
+                self.keep_selection_visible();
+                self.ensure_visible_occurrences_are_cached();
+            }
+            AgendaAction::WeekView => {
+                self.view = ViewMode::Week;
+                self.mode = Mode::Normal;
+                self.ensure_visible_occurrences_are_cached();
+            }
             AgendaAction::Delete => {
                 if let Mode::Agenda(agenda) = &self.mode
                     && agenda.selected_item().is_some()
@@ -392,6 +417,7 @@ impl App {
             }
             AgendaAction::Edit => self.open_event_editor(),
             AgendaAction::Close => {
+                self.view = self.config.default_view;
                 self.mode = Mode::Normal;
                 self.keep_selection_visible();
                 self.ensure_visible_occurrences_are_cached();
@@ -408,7 +434,10 @@ impl App {
         let agenda = (**agenda).clone();
         match action {
             ConfirmAction::Cancel => {
-                self.mode = Mode::Agenda(agenda);
+                self.view = self.config.default_view;
+                self.mode = Mode::Normal;
+                self.keep_selection_visible();
+                self.ensure_visible_occurrences_are_cached();
             }
             ConfirmAction::Confirm => {
                 let Some(item) = agenda.selected_item().cloned() else {
@@ -458,18 +487,10 @@ impl App {
                 Ok(())
             }
             DialogAction::Cancel => {
-                let agenda = match &self.mode {
-                    Mode::Edit(editor) => editor
-                        .target
-                        .as_ref()
-                        .map(|target| (target.agenda_center, target.occurrence_start.timestamp())),
-                    _ => None,
-                };
-                self.mode = if let Some((center, preferred)) = agenda {
-                    Mode::Agenda(self.build_agenda(center, Some(preferred)))
-                } else {
-                    Mode::Normal
-                };
+                self.view = self.config.default_view;
+                self.mode = Mode::Normal;
+                self.keep_selection_visible();
+                self.ensure_visible_occurrences_are_cached();
                 self.hotkey_handler.reset();
                 Ok(())
             }

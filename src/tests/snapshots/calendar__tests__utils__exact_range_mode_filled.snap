@@ -23,7 +23,7 @@ expression: self.render()
 └──────────────┘└─│ │jun 9 06:15                                                           │ │─┘└──────────────┘
 ┌   15 Jun─────┐┌ │ └──────────────────────────────────────────────────────────────────────┘ │─┐┌   21 Jun─────┐
 │              ││ │                                                                          │ ││              │
-│              ││ │ C-t mode · Tab/BackTab fields · C-u clear · Enter save · Esc cancel      │ ││              │
+│              ││ │ C-t mode · Tab/BackTab fields · C-u clear · Enter save · Esc back        │ ││              │
 │              ││ │                                                                          │ ││              │
 │              ││ │                                                                          │ ││              │
 │              ││ └──────────────────────────────────────────────────────────────────────────┘ ││              │
@@ -37,4 +37,4 @@ expression: self.render()
 │              ││              ││              ││              ││              ││              ││              │
 │              ││              ││              ││              ││              ││              ││              │
 └──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘
- a  add   Enter  agenda   m  4-week   w  week   ?  keys   q  quit    2026-06-01 · 0 event(s)
+ n  add   Enter  agenda   v m  4-week   v w  week   ?  keys   Esc  back/quit    2026-06-01 · 0 event(s)

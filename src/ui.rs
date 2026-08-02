@@ -15,8 +15,8 @@ use crate::{
 };
 
 const PALETTE: [Color; 8] = [
-    Color::Cyan,
-    Color::Magenta,
+    Color::Rgb(86, 156, 214),
+    Color::Rgb(255, 183, 77),
     Color::Green,
     Color::Yellow,
     Color::Blue,
@@ -211,12 +211,16 @@ fn draw_agenda_footer(frame: &mut Frame, app: &App, area: Rect) {
             key_style(),
         ),
         Span::raw(" appointments  "),
+        Span::styled(format!(" {} ", key(AgendaAction::AddEvent)), key_style()),
+        Span::raw(" new  "),
         Span::styled(format!(" {} ", key(AgendaAction::Edit)), key_style()),
         Span::raw(" edit  "),
         Span::styled(format!(" {} ", key(AgendaAction::Delete)), key_style()),
         Span::raw(" delete  "),
+        Span::styled(format!(" {} ", key(AgendaAction::MonthView)), key_style()),
+        Span::raw(" views  "),
         Span::styled(format!(" {} ", key(AgendaAction::Close)), key_style()),
-        Span::raw(" close"),
+        Span::raw(" back"),
     ]);
     frame.render_widget(Paragraph::new(line), Rect { height: 1, ..area });
     if let Some(status) = &app.status
@@ -266,7 +270,7 @@ fn draw_delete_confirmation(frame: &mut Frame, app: &App, agenda: &AgendaState) 
             Line::raw(detail),
             Line::raw(""),
             Line::styled(
-                format!("{confirm} confirm · {cancel} cancel"),
+                format!("{confirm} confirm · {cancel} back"),
                 Style::default().fg(Color::DarkGray),
             ),
         ])
@@ -600,9 +604,9 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         Span::raw(" week  "),
         Span::styled(format!(" {} ", key(NormalAction::Help)), key_style()),
         Span::raw(" keys  "),
-        Span::styled(format!(" {} ", key(NormalAction::Quit)), key_style()),
+        Span::styled(format!(" {} ", key(NormalAction::DefaultView)), key_style()),
         Span::raw(format!(
-            " quit    {} · {} event(s)",
+            " back/quit    {} · {} event(s)",
             app.selected,
             app.events_on(app.selected).len()
         )),
@@ -740,7 +744,7 @@ fn draw_editor(frame: &mut Frame, app: &App, editor: &EditState) {
     let binding = |action| bindings.key_for(&action).unwrap_or_else(|| "—".to_string());
     frame.render_widget(
         Paragraph::new(format!(
-            "{} mode · {}/{} fields · {} clear · {} save · {} cancel",
+            "{} mode · {}/{} fields · {} clear · {} save · {} back",
             binding(crate::hotkey::DialogAction::ToggleMode),
             binding(crate::hotkey::DialogAction::NextField),
             binding(crate::hotkey::DialogAction::PreviousField),

@@ -142,3 +142,7 @@ fn lookup<A: Action>(config: &HotkeyConfig<A>, action: &A) -> Vec<KeyEvent> {
 pub fn key(character: char) -> KeyEvent {
     KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE)
 }
+
+pub fn escape() -> KeyEvent {
+    KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
+}

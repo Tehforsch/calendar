@@ -23,7 +23,7 @@ pub enum NormalAction {
     Today,
     Reload,
     Help,
-    Quit,
+    DefaultView,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -39,6 +39,10 @@ pub enum DialogAction {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AgendaAction {
     Navigate(Direction),
+    AddEvent,
+    AgendaView,
+    MonthView,
+    WeekView,
     Delete,
     Edit,
     Close,
@@ -70,7 +74,7 @@ impl Action for NormalAction {
             Self::Today => "Go to today",
             Self::Reload => "Reload calendars",
             Self::Help => "Show all hotkeys",
-            Self::Quit => "Quit",
+            Self::DefaultView => "Back to default view / quit",
         }
         .to_string()
     }
@@ -83,6 +87,10 @@ impl Action for AgendaAction {
             Self::Navigate(Direction::Down) => "Next appointment",
             Self::Navigate(Direction::Left) => "Previous appointment",
             Self::Navigate(Direction::Right) => "Next appointment",
+            Self::AddEvent => "Add event",
+            Self::AgendaView => "Agenda view",
+            Self::MonthView => "Four-week view",
+            Self::WeekView => "Week view",
             Self::Delete => "Delete appointment",
             Self::Edit => "Edit appointment",
             Self::Close => "Close agenda",
@@ -145,12 +153,6 @@ impl Sequence {
 #[derive(Debug, Clone)]
 pub struct HotkeyConfig<A: Action> {
     pub bindings: Vec<(A, Sequence)>,
-}
-
-impl<A: Action> Default for HotkeyConfig<A> {
-    fn default() -> Self {
-        Self { bindings: vec![] }
-    }
 }
 
 impl<A: Action> HotkeyConfig<A> {
@@ -224,74 +226,8 @@ impl<'de, A: Action> Deserialize<'de> for HotkeyConfig<A> {
 pub struct Hotkeys {
     pub normal: HotkeyConfig<NormalAction>,
     pub dialog: HotkeyConfig<DialogAction>,
-    #[serde(default)]
     pub agenda: HotkeyConfig<AgendaAction>,
-    #[serde(default)]
     pub confirm: HotkeyConfig<ConfirmAction>,
-}
-
-impl Default for Hotkeys {
-    fn default() -> Self {
-        serde_yaml::from_str(include_str!("../assets/default_hotkeys.yml"))
-            .expect("bundled hotkeys must be valid")
-    }
-}
-
-impl Hotkeys {
-    pub fn migrate_new_bindings(&mut self) {
-        add_missing_binding(&mut self.dialog, DialogAction::ToggleMode, "C-t");
-        add_missing_binding(&mut self.normal, NormalAction::OpenAgenda, "Enter");
-        add_missing_binding(
-            &mut self.agenda,
-            AgendaAction::Navigate(Direction::Down),
-            "j",
-        );
-        add_missing_alternate_binding(
-            &mut self.agenda,
-            AgendaAction::Navigate(Direction::Down),
-            "Down",
-        );
-        add_missing_binding(&mut self.agenda, AgendaAction::Navigate(Direction::Up), "k");
-        add_missing_alternate_binding(
-            &mut self.agenda,
-            AgendaAction::Navigate(Direction::Up),
-            "Up",
-        );
-        add_missing_binding(&mut self.agenda, AgendaAction::Delete, "x");
-        add_missing_binding(&mut self.agenda, AgendaAction::Edit, "e");
-        add_missing_binding(&mut self.agenda, AgendaAction::Close, "Esc");
-        add_missing_binding(&mut self.confirm, ConfirmAction::Confirm, "Enter");
-        add_missing_binding(&mut self.confirm, ConfirmAction::Cancel, "Esc");
-    }
-}
-
-fn add_missing_binding<A: Action>(config: &mut HotkeyConfig<A>, action: A, key: &str) {
-    if config
-        .bindings
-        .iter()
-        .any(|(existing, _)| existing == &action)
-    {
-        return;
-    }
-    let sequence = Sequence::parse(key).expect("bundled migration key must be valid");
-    if config
-        .bindings
-        .iter()
-        .all(|(_, existing)| existing != &sequence)
-    {
-        config.bindings.push((action, sequence));
-    }
-}
-
-fn add_missing_alternate_binding<A: Action>(config: &mut HotkeyConfig<A>, action: A, key: &str) {
-    let sequence = Sequence::parse(key).expect("bundled migration key must be valid");
-    if config
-        .bindings
-        .iter()
-        .all(|(_, existing)| existing != &sequence)
-    {
-        config.bindings.push((action, sequence));
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -417,7 +353,9 @@ mod tests {
 
     #[test]
     fn bundled_hotkeys_parse_and_sequences_are_discoverable() {
-        let hotkeys = Hotkeys::default();
+        let config: crate::config::Config =
+            serde_yaml::from_str(include_str!("../assets/default_config.yml")).unwrap();
+        let hotkeys = config.hotkeys;
         assert_eq!(
             hotkeys.normal.key_for(&NormalAction::Today).as_deref(),
             Some("g t")

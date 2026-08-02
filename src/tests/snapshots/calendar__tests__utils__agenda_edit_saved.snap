@@ -36,5 +36,5 @@ expression: self.render()
 │                                                                                                              │
 │                                                                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- j/k  appointments   e  edit   x  delete   Esc  close
+ j/k  appointments   n  new   e  edit   x  delete   v m  views   q  back
 Updated Revised title
