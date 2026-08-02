@@ -1,0 +1,40 @@
+---
+source: src/tests/utils.rs
+expression: self.render()
+---
+ agenda   18 May 2026 – 15 Jun 2026  ·  centered on Monday 1 June
+
+┌ 0 appointment(s) ────────────────────────────────────────────────────────────────────────────────────────────┐
+│No appointments within 14 days of 1 Jun 2026                                                                  │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ j/k  appointments   e  edit   x  delete   Esc  close
+Deleted Disposable

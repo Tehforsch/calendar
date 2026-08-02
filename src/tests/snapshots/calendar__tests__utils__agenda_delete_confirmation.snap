@@ -1,0 +1,40 @@
+---
+source: src/tests/utils.rs
+expression: self.render()
+---
+ agenda   18 May 2026 – 15 Jun 2026  ·  centered on Monday 1 June  ■ personal
+
+┌ 1 appointment(s) ────────────────────────────────────────────────────────────────────────────────────────────┐
+│Monday · 1 June 2026  · selected day                                                                          │
+│ ▶  10:00–11:00        Disposable  [personal]                                                                 │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                       ┌ Delete appointment? ─────────────────────────────────────────┐                       │
+│                       │Disposable                                                    │                       │
+│                       │This appointment will be deleted.                             │                       │
+│                       │                                                              │                       │
+│                       │Enter confirm · Esc cancel                                    │                       │
+│                       │                                                              │                       │
+│                       └──────────────────────────────────────────────────────────────┘                       │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+│                                                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ j/k  appointments   e  edit   x  delete   Esc  close
+Reloaded 1 events
