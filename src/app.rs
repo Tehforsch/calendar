@@ -8,7 +8,10 @@ use tui_input::{Input, InputRequest};
 use crate::{
     config::{Config, ViewMode},
     date_input::{DateParser, parse_clock, parse_duration_minutes},
-    hotkey::{AgendaAction, ConfirmAction, DialogAction, Direction, Handler, Match, NormalAction},
+    hotkey::{
+        AgendaAction, ConfirmAction, DialogAction, Direction, Handler, Match, NormalAction,
+        SearchAction,
+    },
     store::{CalendarEvent, CalendarStore, EventOccurrence, EventTiming},
 };
 
@@ -122,6 +125,7 @@ pub enum Mode {
     Agenda(AgendaState),
     ConfirmDelete(Box<AgendaState>),
     Edit(Box<EditState>),
+    Search(SearchState),
     Help,
 }
 
@@ -140,6 +144,51 @@ pub struct AgendaState {
 }
 
 impl AgendaState {
+    pub fn selected_item(&self) -> Option<&AgendaItem> {
+        self.items.get(self.selected)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchState {
+    pub query: Input,
+    candidates: Vec<AgendaItem>,
+    pub items: Vec<AgendaItem>,
+    pub selected: usize,
+}
+
+impl SearchState {
+    fn new(
+        candidates: Vec<AgendaItem>,
+        events: &[CalendarEvent],
+        today: Date,
+        timezone: &TimeZone,
+    ) -> Self {
+        let mut state = Self {
+            query: Input::default(),
+            candidates,
+            items: Vec::new(),
+            selected: 0,
+        };
+        state.refresh(events, today, timezone);
+        state
+    }
+
+    fn refresh(&mut self, events: &[CalendarEvent], today: Date, timezone: &TimeZone) {
+        let query = self.query.value();
+        self.items = self
+            .candidates
+            .iter()
+            .filter(|item| fuzzy_matches(&events[item.event_index].summary, query))
+            .cloned()
+            .collect();
+        self.selected = self
+            .items
+            .iter()
+            .position(|item| item.start.timestamp().to_zoned(timezone.clone()).date() >= today)
+            .unwrap_or_else(|| self.items.len().saturating_sub(1));
+    }
+
     pub fn selected_item(&self) -> Option<&AgendaItem> {
         self.items.get(self.selected)
     }
@@ -252,6 +301,11 @@ impl App {
                 .hotkeys
                 .confirm
                 .continuations(self.hotkey_handler.pending()),
+            Mode::Search(_) => self
+                .config
+                .hotkeys
+                .search
+                .continuations(self.hotkey_handler.pending()),
             Mode::Help => Vec::new(),
         }
     }
@@ -303,6 +357,15 @@ impl App {
             {
                 Match::Action(action) => self.handle_confirmation(action),
                 Match::Pending | Match::NoMatch => Ok(()),
+            }
+        } else if matches!(self.mode, Mode::Search(_)) {
+            match self.hotkey_handler.handle(&self.config.hotkeys.search, key) {
+                Match::Action(action) => self.handle_search(action),
+                Match::Pending => Ok(()),
+                Match::NoMatch => {
+                    self.handle_search_text_input(key);
+                    Ok(())
+                }
             }
         } else {
             match self.hotkey_handler.handle(&self.config.hotkeys.dialog, key) {
@@ -358,6 +421,7 @@ impl App {
                 self.status = Some(format!("Reloaded {} events", self.events.len()));
             }
             NormalAction::Help => self.mode = Mode::Help,
+            NormalAction::Search => self.open_search(),
             NormalAction::DefaultView => {
                 if self.view == self.config.default_view {
                     self.should_quit = true;
@@ -368,6 +432,50 @@ impl App {
             }
         }
         self.ensure_visible_occurrences_are_cached();
+        Ok(())
+    }
+
+    pub fn handle_search(&mut self, action: SearchAction) -> Result<()> {
+        match action {
+            SearchAction::Navigate(direction) => {
+                if let Mode::Search(search) = &mut self.mode
+                    && !search.items.is_empty()
+                {
+                    match direction {
+                        Direction::Up | Direction::Left => {
+                            search.selected = search.selected.saturating_sub(1);
+                        }
+                        Direction::Down | Direction::Right => {
+                            search.selected = (search.selected + 1).min(search.items.len() - 1);
+                        }
+                    }
+                }
+            }
+            SearchAction::Select => {
+                let item = match &self.mode {
+                    Mode::Search(search) => search.selected_item().cloned(),
+                    _ => None,
+                };
+                if let Some(item) = item {
+                    let date = item
+                        .start
+                        .timestamp()
+                        .to_zoned(self.timezone().clone())
+                        .date();
+                    self.selected = date;
+                    self.view_start = week_start(date);
+                    self.rebuild_occurrence_cache();
+                    self.mode = Mode::Agenda(self.build_agenda(date, Some(item.start.timestamp())));
+                }
+            }
+            SearchAction::Cancel => {
+                self.view = self.config.default_view;
+                self.mode = Mode::Normal;
+                self.keep_selection_visible();
+                self.ensure_visible_occurrences_are_cached();
+            }
+        }
+        self.hotkey_handler.reset();
         Ok(())
     }
 
@@ -527,6 +635,36 @@ impl App {
     fn open_agenda(&mut self) {
         self.ensure_visible_occurrences_are_cached();
         self.mode = Mode::Agenda(self.build_agenda(self.selected, None));
+        self.hotkey_handler.reset();
+    }
+
+    fn open_search(&mut self) {
+        let timezone = self.timezone().clone();
+        let today = self.now.date();
+        let mut candidates = self
+            .events
+            .iter()
+            .enumerate()
+            .map(|(event_index, event)| {
+                let occurrence = event.representative_occurrence(today, &timezone);
+                AgendaItem {
+                    event_index,
+                    start: occurrence.start,
+                    end: occurrence.end,
+                }
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by(|left, right| {
+            left.start
+                .timestamp()
+                .cmp(&right.start.timestamp())
+                .then_with(|| {
+                    self.events[left.event_index]
+                        .summary
+                        .cmp(&self.events[right.event_index].summary)
+                })
+        });
+        self.mode = Mode::Search(SearchState::new(candidates, &self.events, today, &timezone));
         self.hotkey_handler.reset();
     }
 
@@ -821,25 +959,21 @@ impl App {
     }
 
     fn handle_text_input(&mut self, key: KeyEvent) {
-        let request =
-            match (key.code, key.modifiers) {
-                (KeyCode::Char(character), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
-                    Some(InputRequest::InsertChar(character))
-                }
-                (KeyCode::Backspace, KeyModifiers::NONE) => Some(InputRequest::DeletePrevChar),
-                (KeyCode::Delete, KeyModifiers::NONE) => Some(InputRequest::DeleteNextChar),
-                (KeyCode::Left, KeyModifiers::NONE) => Some(InputRequest::GoToPrevChar),
-                (KeyCode::Right, KeyModifiers::NONE) => Some(InputRequest::GoToNextChar),
-                (KeyCode::Home, KeyModifiers::NONE)
-                | (KeyCode::Char('a'), KeyModifiers::CONTROL) => Some(InputRequest::GoToStart),
-                (KeyCode::End, KeyModifiers::NONE)
-                | (KeyCode::Char('e'), KeyModifiers::CONTROL) => Some(InputRequest::GoToEnd),
-                (KeyCode::Char('w'), KeyModifiers::CONTROL) => Some(InputRequest::DeletePrevWord),
-                _ => None,
-            };
+        let request = input_request(key);
         if let (Some(request), Mode::Edit(editor)) = (request, &mut self.mode) {
             editor.active_input_mut().handle(request);
             editor.error = None;
+        }
+    }
+
+    fn handle_search_text_input(&mut self, key: KeyEvent) {
+        let Some(request) = input_request(key) else {
+            return;
+        };
+        let timezone = self.timezone().clone();
+        if let Mode::Search(search) = &mut self.mode {
+            search.query.handle(request);
+            search.refresh(&self.events, self.now.date(), &timezone);
         }
     }
 
@@ -912,6 +1046,34 @@ impl App {
         self.occurrence_cache_start = cache_start;
         self.occurrence_cache_end = cache_end;
     }
+}
+
+fn input_request(key: KeyEvent) -> Option<InputRequest> {
+    match (key.code, key.modifiers) {
+        (KeyCode::Char(character), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
+            Some(InputRequest::InsertChar(character))
+        }
+        (KeyCode::Backspace, KeyModifiers::NONE) => Some(InputRequest::DeletePrevChar),
+        (KeyCode::Delete, KeyModifiers::NONE) => Some(InputRequest::DeleteNextChar),
+        (KeyCode::Left, KeyModifiers::NONE) => Some(InputRequest::GoToPrevChar),
+        (KeyCode::Right, KeyModifiers::NONE) => Some(InputRequest::GoToNextChar),
+        (KeyCode::Home, KeyModifiers::NONE) | (KeyCode::Char('a'), KeyModifiers::CONTROL) => {
+            Some(InputRequest::GoToStart)
+        }
+        (KeyCode::End, KeyModifiers::NONE) | (KeyCode::Char('e'), KeyModifiers::CONTROL) => {
+            Some(InputRequest::GoToEnd)
+        }
+        (KeyCode::Char('w'), KeyModifiers::CONTROL) => Some(InputRequest::DeletePrevWord),
+        _ => None,
+    }
+}
+
+fn fuzzy_matches(value: &str, query: &str) -> bool {
+    let mut value = value.chars().flat_map(char::to_lowercase);
+    query
+        .chars()
+        .flat_map(char::to_lowercase)
+        .all(|needle| value.by_ref().any(|candidate| candidate == needle))
 }
 
 pub fn week_start(date: Date) -> Date {

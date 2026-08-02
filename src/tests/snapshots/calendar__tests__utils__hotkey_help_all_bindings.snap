@@ -3,38 +3,38 @@ source: src/tests/utils.rs
 expression: self.render()
 ---
  calendar   FOUR WEEKS  1 Jun 2026 – 28 Jun 2026
-      ┌ All hotkeys ─────────────────────────────────────────────────────────────────────────────────────┐
-      │ NORMAL                                          AGENDA                                           │
-┌●▶ 1 │           ?   Show all hotkeys                         Down   Next appointment                   │─────┐
-│     │        Down   Next week                               Enter   Edit appointment                   │     │
-│     │       Enter   Open agenda                               Esc   Close agenda                       │     │
-│     │         Esc   Back to default view / quit                Up   Previous appointment               │     │
-│     │           H   Previous period                             a   Previous appointment               │     │
-│     │           L   Next period                                 d   Next appointment                   │     │
-│     │        Left   Previous day                                e   Edit appointment                   │     │
-└─────│       Right   Next day                                    j   Next appointment                   │─────┘
-┌   8 │          Up   Previous week                               k   Previous appointment               │─────┐
-│     │           a   Previous day                                n   Add event                          │     │
-│     │           d   Next day                                    q   Close agenda                       │     │
-│     │         g t   Go to today                                 s   Next appointment                   │     │
-│     │           h   Previous day                              v a   Agenda view                        │     │
-│     │           j   Next week                                 v m   Four-week view                     │     │
-│     │           k   Previous week                             v w   Week view                          │     │
-└─────│           l   Next day                                    w   Previous appointment               │─────┘
-┌   15│           n   Add event                                   x   Delete appointment                 │─────┐
-│     │           q   Back to default view / quit                                                        │     │
-│     │           r   Reload calendars                  DELETE CONFIRMATION                              │     │
-│     │           s   Next week                               Enter   Confirm deletion                   │     │
-│     │         v a   Open agenda                               Esc   Cancel deletion                    │     │
-│     │         v m   Four-week view                              q   Cancel deletion                    │     │
-│     │         v w   Week view                                                                          │     │
-└─────│           w   Previous week                     ADD / EDIT APPOINTMENT                           │─────┘
-┌   22│                                                     BackTab   Previous field                     │─────┐
-│     │                                                         C-t   Toggle duration/exact-end mode     │     │
-│     │                                                         C-u   Clear field                        │     │
-│     │                                                       Enter   Save event                         │     │
-│     │                                                         Esc   Cancel                             │     │
-│     │                                                         Tab   Next field                         │     │
-│     │                                      Press any key to close                                      │     │
-└─────└──────────────────────────────────────────────────────────────────────────────────────────────────┘─────┘
- n  add   Enter  agenda   v m  4-week   v w  week   ?  keys   Esc  back/quit    2026-06-01 · 0 event(s)
+
+       MON             TUE             WED             THU             FRI             SAT             SUN
+┌┌ All hotkeys ───────────────────────────────────────────────────────────────────────────────────────────────┐┐
+││ NORMAL                              AGENDA                             SEARCH                              ││
+││           /   Search appointments          Down   Next appointment             C-j   Next match            ││
+││           ?   Show all hotkeys            Enter   Edit appointment             C-k   Previous match        ││
+││        Down   Next week                     Esc   Close agenda               Enter   Focus appointment     ││
+││       Enter   Open agenda                    Up   Previous appointment         Esc   Back                  ││
+││         Esc   Back / quit                     a   Previous appointment           q   Back                  ││
+└│           H   Previous period                 d   Next appointment                                         │┘
+┌│           L   Next period                     e   Edit appointment     DELETE CONFIRMATION                 │┐
+││        Left   Previous day                    j   Next appointment           Enter   Confirm deletion      ││
+││       Right   Next day                        k   Previous appointment         Esc   Cancel deletion       ││
+││          Up   Previous week                   n   Add event                      q   Cancel deletion       ││
+││           a   Previous day                    q   Close agenda                                             ││
+││           d   Next day                        s   Next appointment     ADD / EDIT APPOINTMENT              ││
+││         g t   Go to today                   v a   Agenda view              BackTab   Previous field        ││
+└│           h   Previous day                  v m   Four-week view               C-t   Toggle time mode      │┘
+┌│           j   Next week                     v w   Week view                    C-u   Clear field           │┐
+││           k   Previous week                   w   Previous appointment       Enter   Save event            ││
+││           l   Next day                        x   Delete appointment           Esc   Cancel                ││
+││           n   Add event                                                        Tab   Next field            ││
+││           q   Back / quit                                                        q   Cancel                ││
+││           r   Reload calendars                                                                             ││
+││           s   Next week                                                                                    ││
+└│         v a   Open agenda                                                                                  │┘
+┌│         v m   Four-week view                                                                               │┐
+││         v w   Week view                                                                                    ││
+││           w   Previous week                                                                                ││
+││                                                                                                            ││
+││                                           Press any key to close                                           ││
+│└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘│
+│              ││              ││              ││              ││              ││              ││              │
+└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘
+ n  add   Enter  agenda   /  search   v m/v w  views   ?  keys   Esc  back/quit    2026-06-01 · 0 event(s)

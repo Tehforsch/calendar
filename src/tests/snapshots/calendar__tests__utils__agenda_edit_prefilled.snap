@@ -36,5 +36,5 @@ expression: self.render()
 │              ││              ││              ││              ││              ││              ││              │
 │              ││              ││              ││              ││              ││              ││              │
 └──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘
- n  add   Enter  agenda   v m  4-week   v w  week   ?  keys   Esc  back/quit    2026-06-01 · 1 event(s)
+ n  add   Enter  agenda   /  search   v m/v w  views   ?  keys   Esc  back/quit    2026-06-01 · 1 event(s)
 Reloaded 1 events

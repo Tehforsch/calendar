@@ -6,7 +6,9 @@ use tempfile::TempDir;
 use crate::{
     app::App,
     config::Config,
-    hotkey::{Action, AgendaAction, ConfirmAction, DialogAction, HotkeyConfig, NormalAction},
+    hotkey::{
+        Action, AgendaAction, ConfirmAction, DialogAction, HotkeyConfig, NormalAction, SearchAction,
+    },
     store::CalendarStore,
     ui,
 };
@@ -20,6 +22,7 @@ pub enum Instruction {
     Agenda(AgendaAction),
     Confirm(ConfirmAction),
     Dialog(DialogAction),
+    Search(SearchAction),
     Type(&'static str),
     Raw(KeyEvent),
     Snapshot(&'static str),
@@ -80,6 +83,12 @@ impl Harness {
                 }
                 Instruction::Dialog(action) => {
                     let sequence = lookup(&self.app.config.hotkeys.dialog, &action);
+                    for key in sequence {
+                        self.app.handle_key(key).unwrap();
+                    }
+                }
+                Instruction::Search(action) => {
+                    let sequence = lookup(&self.app.config.hotkeys.search, &action);
                     for key in sequence {
                         self.app.handle_key(key).unwrap();
                     }

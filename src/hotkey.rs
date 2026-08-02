@@ -23,6 +23,7 @@ pub enum NormalAction {
     Today,
     Reload,
     Help,
+    Search,
     DefaultView,
 }
 
@@ -54,6 +55,13 @@ pub enum ConfirmAction {
     Cancel,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SearchAction {
+    Navigate(Direction),
+    Select,
+    Cancel,
+}
+
 pub trait Action: Clone + fmt::Debug + PartialEq + Eq + Serialize + DeserializeOwned {
     fn label(&self) -> String;
 }
@@ -74,7 +82,8 @@ impl Action for NormalAction {
             Self::Today => "Go to today",
             Self::Reload => "Reload calendars",
             Self::Help => "Show all hotkeys",
-            Self::DefaultView => "Back to default view / quit",
+            Self::Search => "Search appointments",
+            Self::DefaultView => "Back / quit",
         }
         .to_string()
     }
@@ -109,10 +118,22 @@ impl Action for ConfirmAction {
     }
 }
 
+impl Action for SearchAction {
+    fn label(&self) -> String {
+        match self {
+            Self::Navigate(Direction::Up | Direction::Left) => "Previous match",
+            Self::Navigate(Direction::Down | Direction::Right) => "Next match",
+            Self::Select => "Focus appointment",
+            Self::Cancel => "Back",
+        }
+        .to_string()
+    }
+}
+
 impl Action for DialogAction {
     fn label(&self) -> String {
         match self {
-            Self::ToggleMode => "Toggle duration/exact-end mode",
+            Self::ToggleMode => "Toggle time mode",
             Self::NextField => "Next field",
             Self::PreviousField => "Previous field",
             Self::ClearField => "Clear field",
@@ -228,6 +249,7 @@ pub struct Hotkeys {
     pub dialog: HotkeyConfig<DialogAction>,
     pub agenda: HotkeyConfig<AgendaAction>,
     pub confirm: HotkeyConfig<ConfirmAction>,
+    pub search: HotkeyConfig<SearchAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

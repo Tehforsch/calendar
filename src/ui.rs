@@ -8,9 +8,9 @@ use ratatui::{
 };
 
 use crate::{
-    app::{AgendaState, App, EditField, EditMode, EditState, Mode},
+    app::{AgendaItem, AgendaState, App, EditField, EditMode, EditState, Mode, SearchState},
     config::ViewMode,
-    hotkey::{AgendaAction, ConfirmAction, NormalAction},
+    hotkey::{AgendaAction, ConfirmAction, NormalAction, SearchAction},
     store::{CalendarEvent, EventOccurrence},
 };
 
@@ -34,12 +34,20 @@ pub fn draw(frame: &mut Frame, app: &App) {
     ])
     .split(frame.area());
 
+    let search = match &app.mode {
+        Mode::Search(search) => Some(search),
+        _ => None,
+    };
     let agenda = match &app.mode {
         Mode::Agenda(agenda) => Some(agenda),
         Mode::ConfirmDelete(agenda) => Some(agenda.as_ref()),
         _ => None,
     };
-    if let Some(agenda) = agenda {
+    if let Some(search) = search {
+        draw_search_header(frame, search, areas[0]);
+        draw_search(frame, app, search, areas[1]);
+        draw_search_footer(frame, app, areas[2]);
+    } else if let Some(agenda) = agenda {
         draw_agenda_header(frame, app, agenda, areas[0]);
         draw_agenda(frame, app, agenda, areas[1]);
         draw_agenda_footer(frame, app, areas[2]);
@@ -56,7 +64,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Mode::Edit(editor) => draw_editor(frame, app, editor),
         Mode::Help => draw_help(frame, app),
         Mode::ConfirmDelete(agenda) => draw_delete_confirmation(frame, app, agenda),
-        Mode::Normal | Mode::Agenda(_) => {}
+        Mode::Normal | Mode::Agenda(_) | Mode::Search(_) => {}
     }
     draw_pending(frame, app);
 }
@@ -94,12 +102,35 @@ fn draw_agenda_header(frame: &mut Frame, app: &App, agenda: &AgendaState, area: 
 }
 
 fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
+    draw_agenda_list(
+        frame,
+        app,
+        &agenda.items,
+        agenda.selected,
+        Some(agenda.center_date),
+        format!(
+            "No appointments within 14 days of {}",
+            format_date(agenda.center_date)
+        ),
+        area,
+    );
+}
+
+fn draw_agenda_list(
+    frame: &mut Frame,
+    app: &App,
+    items: &[AgendaItem],
+    selected_index: usize,
+    center_date: Option<Date>,
+    empty_message: String,
+    area: Rect,
+) {
     let inner_height = area.height.saturating_sub(2) as usize;
     let timezone = app.timezone().clone();
     let mut lines = Vec::new();
     let mut selected_line = 0;
     let mut previous_date = None;
-    for (index, item) in agenda.items.iter().enumerate() {
+    for (index, item) in items.iter().enumerate() {
         let event = &app.events[item.event_index];
         let start = item.start.timestamp().to_zoned(timezone.clone());
         let end = item.end.timestamp().to_zoned(timezone.clone());
@@ -108,7 +139,7 @@ fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
             if !lines.is_empty() {
                 lines.push(Line::raw(""));
             }
-            let center = if date == agenda.center_date {
+            let center = if center_date == Some(date) {
                 "  · selected day"
             } else {
                 ""
@@ -116,7 +147,7 @@ fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
             lines.push(Line::styled(
                 format!("{}{}", date.strftime("%A · %-d %B %Y"), center),
                 Style::default()
-                    .fg(if date == agenda.center_date {
+                    .fg(if center_date == Some(date) {
                         Color::Cyan
                     } else {
                         Color::Gray
@@ -137,7 +168,7 @@ fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
                 end.strftime("%H:%M")
             )
         };
-        let selected = index == agenda.selected;
+        let selected = index == selected_index;
         if selected {
             selected_line = lines.len();
         }
@@ -162,10 +193,7 @@ fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
     }
     if lines.is_empty() {
         lines.push(Line::styled(
-            format!(
-                "No appointments within 14 days of {}",
-                format_date(agenda.center_date)
-            ),
+            empty_message,
             Style::default().fg(Color::DarkGray),
         ));
     }
@@ -182,11 +210,75 @@ fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
         Paragraph::new(visible).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" {} appointment(s) ", agenda.items.len()))
+                .title(format!(" {} appointment(s) ", items.len()))
                 .border_style(Style::default().fg(Color::DarkGray)),
         ),
         area,
     );
+}
+
+fn draw_search_header(frame: &mut Frame, search: &SearchState, area: Rect) {
+    let prefix = " search  /";
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                " search ",
+                Style::default()
+                    .bg(Color::Cyan)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(format!(
+                " /{}  ·  {} match(es)",
+                search.query.value(),
+                search.items.len()
+            )),
+        ])),
+        area,
+    );
+    let cursor = search.query.visual_cursor() as u16;
+    frame.set_cursor_position((
+        area.x + (prefix.len() as u16 + cursor).min(area.width.saturating_sub(1)),
+        area.y,
+    ));
+}
+
+fn draw_search(frame: &mut Frame, app: &App, search: &SearchState, area: Rect) {
+    draw_agenda_list(
+        frame,
+        app,
+        &search.items,
+        search.selected,
+        None,
+        "No appointments match this search".to_string(),
+        area,
+    );
+}
+
+fn draw_search_footer(frame: &mut Frame, app: &App, area: Rect) {
+    let key = |action| {
+        app.config
+            .hotkeys
+            .search
+            .key_for(&action)
+            .unwrap_or_else(|| "—".to_string())
+    };
+    let line = Line::from(vec![
+        Span::styled(
+            format!(
+                " {}/{} ",
+                key(SearchAction::Navigate(crate::hotkey::Direction::Down)),
+                key(SearchAction::Navigate(crate::hotkey::Direction::Up))
+            ),
+            key_style(),
+        ),
+        Span::raw(" matches  "),
+        Span::styled(format!(" {} ", key(SearchAction::Select)), key_style()),
+        Span::raw(" focus  "),
+        Span::styled(format!(" {} ", key(SearchAction::Cancel)), key_style()),
+        Span::raw(" back"),
+    ]);
+    frame.render_widget(Paragraph::new(line), Rect { height: 1, ..area });
 }
 
 fn draw_agenda_footer(frame: &mut Frame, app: &App, area: Rect) {
@@ -598,10 +690,17 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         Span::raw(" add  "),
         Span::styled(format!(" {} ", key(NormalAction::OpenAgenda)), key_style()),
         Span::raw(" agenda  "),
-        Span::styled(format!(" {} ", key(NormalAction::MonthView)), key_style()),
-        Span::raw(" 4-week  "),
-        Span::styled(format!(" {} ", key(NormalAction::WeekView)), key_style()),
-        Span::raw(" week  "),
+        Span::styled(format!(" {} ", key(NormalAction::Search)), key_style()),
+        Span::raw(" search  "),
+        Span::styled(
+            format!(
+                " {}/{} ",
+                key(NormalAction::MonthView),
+                key(NormalAction::WeekView)
+            ),
+            key_style(),
+        ),
+        Span::raw(" views  "),
         Span::styled(format!(" {} ", key(NormalAction::Help)), key_style()),
         Span::raw(" keys  "),
         Span::styled(format!(" {} ", key(NormalAction::DefaultView)), key_style()),
@@ -785,13 +884,15 @@ fn draw_input(frame: &mut Frame, title: &str, input: &tui_input::Input, active: 
 fn draw_help(frame: &mut Frame, app: &App) {
     let normal = app.config.hotkeys.normal.rows();
     let agenda = app.config.hotkeys.agenda.rows();
+    let search = app.config.hotkeys.search.rows();
     let confirm = app.config.hotkeys.confirm.rows();
     let dialog = app.config.hotkeys.dialog.rows();
     let left_height = normal.len() + 1;
-    let right_height = agenda.len() + confirm.len() + dialog.len() + 7;
-    let height = (left_height.max(right_height) + 4)
+    let middle_height = agenda.len() + 1;
+    let right_height = search.len() + confirm.len() + dialog.len() + 8;
+    let height = (left_height.max(middle_height).max(right_height) + 4)
         .min(frame.area().height.saturating_sub(2) as usize) as u16;
-    let area = centered(frame.area(), 100, height.max(8));
+    let area = centered(frame.area(), 110, height.max(8));
     frame.render_widget(Clear, area);
     frame.render_widget(
         Block::default()
@@ -806,8 +907,12 @@ fn draw_help(frame: &mut Frame, app: &App) {
         vertical: 1,
     });
     let sections = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(inner);
-    let columns = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(sections[0]);
+    let columns = Layout::horizontal([
+        Constraint::Percentage(34),
+        Constraint::Percentage(33),
+        Constraint::Percentage(33),
+    ])
+    .split(sections[0]);
 
     let mut left = vec![Line::styled(
         "NORMAL",
@@ -817,13 +922,21 @@ fn draw_help(frame: &mut Frame, app: &App) {
     )];
     left.extend(normal.into_iter().map(binding_line));
 
-    let mut right = vec![Line::styled(
+    let mut middle = vec![Line::styled(
         "AGENDA",
         Style::default()
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD),
     )];
-    right.extend(agenda.into_iter().map(binding_line));
+    middle.extend(agenda.into_iter().map(binding_line));
+
+    let mut right = vec![Line::styled(
+        "SEARCH",
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )];
+    right.extend(search.into_iter().map(binding_line));
     right.push(Line::raw(""));
     right.push(Line::styled(
         "DELETE CONFIRMATION",
@@ -841,7 +954,11 @@ fn draw_help(frame: &mut Frame, app: &App) {
     ));
     right.extend(dialog.into_iter().map(binding_line));
     frame.render_widget(Paragraph::new(left).wrap(Wrap { trim: false }), columns[0]);
-    frame.render_widget(Paragraph::new(right).wrap(Wrap { trim: false }), columns[1]);
+    frame.render_widget(
+        Paragraph::new(middle).wrap(Wrap { trim: false }),
+        columns[1],
+    );
+    frame.render_widget(Paragraph::new(right).wrap(Wrap { trim: false }), columns[2]);
     frame.render_widget(
         Paragraph::new("Press any key to close")
             .alignment(Alignment::Center)

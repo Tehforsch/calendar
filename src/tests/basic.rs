@@ -2,7 +2,9 @@ use jiff::{ToSpan, civil::date};
 
 use crate::{
     config::ViewMode,
-    hotkey::{AgendaAction, ConfirmAction, DialogAction, Direction, NormalAction, Sequence},
+    hotkey::{
+        AgendaAction, ConfirmAction, DialogAction, Direction, NormalAction, SearchAction, Sequence,
+    },
     store::CalendarEvent,
 };
 
@@ -102,6 +104,13 @@ fn q_returns_to_the_default_view_from_every_mode() {
     ]);
     assert!(matches!(agenda.app.mode, crate::app::Mode::Normal));
 
+    let mut search = Harness::new("back_search");
+    search.run([
+        Instruction::Normal(NormalAction::Search),
+        Instruction::Raw(key('q')),
+    ]);
+    assert!(matches!(search.app.mode, crate::app::Mode::Normal));
+
     let mut confirmation = Harness::new("back_confirmation");
     add_timed(&mut confirmation, "Disposable", date(2026, 6, 1), 10);
     confirmation.run([
@@ -139,6 +148,63 @@ fn escape_returns_to_the_default_view_from_every_mode() {
         Instruction::Raw(escape()),
     ]);
     assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+
+    harness.run([
+        Instruction::Normal(NormalAction::Search),
+        Instruction::Search(SearchAction::Cancel),
+    ]);
+    assert!(matches!(harness.app.mode, crate::app::Mode::Normal));
+}
+
+#[test]
+fn search_filters_live_selects_today_forward_and_focuses_the_match() {
+    let mut harness = Harness::new("event_search");
+    add_timed(&mut harness, "Project Alpha", date(2026, 5, 31), 9);
+    add_timed(&mut harness, "Unrelated", date(2026, 6, 1), 10);
+    add_timed(&mut harness, "Proton review", date(2026, 6, 2), 11);
+    add_timed(&mut harness, "Project Beta", date(2026, 6, 3), 12);
+    harness.run([
+        Instruction::Normal(NormalAction::Reload),
+        Instruction::Normal(NormalAction::Search),
+    ]);
+
+    let crate::app::Mode::Search(search) = &harness.app.mode else {
+        panic!("slash should open search");
+    };
+    assert_eq!(
+        harness.app.events[search.selected_item().unwrap().event_index].summary,
+        "Unrelated"
+    );
+
+    harness.run([Instruction::Type("p")]);
+    let crate::app::Mode::Search(search) = &harness.app.mode else {
+        panic!("typing should stay in search");
+    };
+    assert_eq!(search.items.len(), 3);
+    harness.run([Instruction::Type("jt"), Instruction::Snapshot("filtered")]);
+    let crate::app::Mode::Search(search) = &harness.app.mode else {
+        panic!("typing should stay in search");
+    };
+    assert_eq!(search.items.len(), 2);
+    assert_eq!(
+        harness.app.events[search.selected_item().unwrap().event_index].summary,
+        "Project Beta"
+    );
+
+    harness.run([Instruction::Search(SearchAction::Navigate(Direction::Up))]);
+    let crate::app::Mode::Search(search) = &harness.app.mode else {
+        panic!("navigation should stay in search");
+    };
+    assert_eq!(
+        harness.app.events[search.selected_item().unwrap().event_index].summary,
+        "Project Alpha"
+    );
+    harness.run([
+        Instruction::Search(SearchAction::Navigate(Direction::Down)),
+        Instruction::Search(SearchAction::Select),
+    ]);
+    assert_eq!(harness.app.selected, date(2026, 6, 3));
+    assert_eq!(selected_event(&harness).summary, "Project Beta");
 }
 
 #[test]

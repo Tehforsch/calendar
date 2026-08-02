@@ -30,6 +30,7 @@ hotkeys:
     "g t": Today
     "r": Reload
     "?": Help
+    "/": Search
     "q": DefaultView
     "Esc": DefaultView
   dialog:
@@ -60,5 +61,11 @@ hotkeys:
     "q": Close
   confirm:
     "Enter": Confirm
+    "Esc": Cancel
+    "q": Cancel
+  search:
+    "C-j": !Navigate Down
+    "C-k": !Navigate Up
+    "Enter": Select
     "Esc": Cancel
     "q": Cancel

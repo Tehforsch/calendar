@@ -47,6 +47,29 @@ impl CalendarEvent {
         self.recurrence.is_some() || self.recurrence_id.is_some()
     }
 
+    pub fn representative_occurrence<'a>(
+        &'a self,
+        today: Date,
+        display_timezone: &TimeZone,
+    ) -> EventOccurrence<'a> {
+        if self.recurrence.is_some() {
+            for offset in 0..=732 {
+                if let Some(occurrence) = self
+                    .occurrences_on(today + offset.days(), display_timezone)
+                    .into_iter()
+                    .next()
+                {
+                    return occurrence;
+                }
+            }
+        }
+        EventOccurrence {
+            event: self,
+            start: self.start.clone(),
+            end: self.end.clone(),
+        }
+    }
+
     pub fn occurs_on(&self, date: Date, display_timezone: &TimeZone) -> bool {
         let day_start = date
             .at(0, 0, 0, 0)
@@ -1193,6 +1216,24 @@ mod tests {
                 .occurrences_on(jiff::civil::date(2026, 6, 15), &TimeZone::UTC)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn recurring_search_result_uses_the_next_occurrence() {
+        let input = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:daily\r\nDTSTART:20260601T090000Z\r\nDTEND:20260601T100000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nSUMMARY:Daily\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let event = parse_ics(
+            input,
+            Path::new("/calendar/daily.ics"),
+            Path::new("/calendar"),
+            TimeZone::UTC,
+        )
+        .unwrap()
+        .remove(0);
+
+        let occurrence =
+            event.representative_occurrence(jiff::civil::date(2026, 6, 2), &TimeZone::UTC);
+
+        assert_eq!(occurrence.start.date(), jiff::civil::date(2026, 6, 2));
     }
 
     #[test]

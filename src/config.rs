@@ -80,10 +80,11 @@ mod tests {
         let config: Config = serde_yaml::from_str(include_str!("../assets/default_config.yml"))
             .expect("bundled config should be usable");
         assert_eq!(config.default_view, ViewMode::Month);
-        assert_eq!(config.hotkeys.normal.rows().len(), 24);
+        assert_eq!(config.hotkeys.normal.rows().len(), 25);
         assert_eq!(config.hotkeys.dialog.rows().len(), 7);
         assert_eq!(config.hotkeys.agenda.rows().len(), 17);
         assert_eq!(config.hotkeys.confirm.rows().len(), 3);
+        assert_eq!(config.hotkeys.search.rows().len(), 5);
     }
 
     #[test]
