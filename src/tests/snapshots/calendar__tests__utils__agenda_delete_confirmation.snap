@@ -4,18 +4,18 @@ expression: self.render()
 ---
  agenda   18 May 2026 – 15 Jun 2026  ·  centered on Monday 1 June  ■ personal
 
-┌ 1 appointment(s) ────────────────────────────────────────────────────────────────────────────────────────────┐
-│Monday · 1 June 2026  · selected day                                                                          │
-│ ▶  10:00–11:00        Disposable  [personal]                                                                 │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
+┌ 1 appointment(s) ─────────────────────────────────────────────┐┌ appointment details ────────────────────────┐
+│Monday · 1 June 2026  · selected day                           ││Disposable                                   │
+│ ▶  10:00–11:00        Disposable  [personal]                  ││Mon 1 Jun 2026 10:00 – Mon 1 Jun 2026 11:00  │
+│                                                               ││Calendar: personal                           │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
 │                       ┌ Delete appointment? ─────────────────────────────────────────┐                       │
 │                       │Disposable                                                    │                       │
 │                       │This appointment will be deleted.                             │                       │
@@ -23,18 +23,18 @@ expression: self.render()
 │                       │Enter confirm · Esc back                                      │                       │
 │                       │                                                              │                       │
 │                       └──────────────────────────────────────────────────────────────┘                       │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-│                                                                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+│                                                               ││                                             │
+└───────────────────────────────────────────────────────────────┘└─────────────────────────────────────────────┘
  j/k  appointments   n  new   e  edit   x  delete   v m  views   q  back
 Reloaded 1 events

@@ -102,6 +102,8 @@ fn draw_agenda_header(frame: &mut Frame, app: &App, agenda: &AgendaState, area: 
 }
 
 fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
+    let columns =
+        Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)]).split(area);
     draw_agenda_list(
         frame,
         app,
@@ -112,8 +114,159 @@ fn draw_agenda(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
             "No appointments within 14 days of {}",
             format_date(agenda.center_date)
         ),
+        columns[0],
+    );
+    draw_event_details(frame, app, agenda, columns[1]);
+}
+
+fn draw_event_details(frame: &mut Frame, app: &App, agenda: &AgendaState, area: Rect) {
+    let Some(item) = agenda.selected_item() else {
+        frame.render_widget(
+            Paragraph::new("Select an appointment to see its details")
+                .block(Block::default().borders(Borders::ALL).title(" details ")),
+            area,
+        );
+        return;
+    };
+    let event = &app.events[item.event_index];
+    let timezone = app.timezone().clone();
+    let start = item.start.timestamp().to_zoned(timezone.clone());
+    let end = item.end.timestamp().to_zoned(timezone);
+    let timing = if event.all_day {
+        format!("{} · all day", start.strftime("%A, %-d %B %Y"))
+    } else {
+        format!(
+            "{} {} – {}",
+            start.strftime("%a %-d %b %Y"),
+            start.strftime("%H:%M"),
+            end.strftime("%a %-d %b %Y %H:%M")
+        )
+    };
+    let mut lines = vec![
+        Line::styled(
+            event.summary.clone(),
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
+        Line::raw(timing),
+        Line::raw(format!("Calendar: {}", event.calendar)),
+        Line::raw(""),
+    ];
+    let mut links = Vec::new();
+    for metadata in &event.metadata {
+        if matches!(
+            metadata.name.as_str(),
+            "UID" | "DTSTAMP" | "CREATED" | "LAST-MODIFIED" | "DTSTART" | "DTEND" | "SUMMARY"
+        ) {
+            continue;
+        }
+        let mut label = metadata.name.replace('-', " ");
+        for (name, value) in &metadata.parameters {
+            label.push_str(&format!(";{name}={value}"));
+        }
+        let mut values = metadata.value.lines();
+        if let Some(value) = values.next() {
+            let row = lines.len() as u16;
+            let (line, line_links) = metadata_line(&label, value);
+            links.extend(
+                line_links
+                    .into_iter()
+                    .map(|(column, url)| (row, column, url)),
+            );
+            lines.push(line);
+        }
+        for value in values {
+            let row = lines.len() as u16;
+            let (line, line_links) = metadata_line("", value);
+            links.extend(
+                line_links
+                    .into_iter()
+                    .map(|(column, url)| (row, column, url)),
+            );
+            lines.push(line);
+        }
+    }
+    frame.render_widget(
+        Paragraph::new(lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" appointment details "),
+        ),
         area,
     );
+    let inner = area.inner(Margin {
+        horizontal: 1,
+        vertical: 1,
+    });
+    for (row, column, url) in links {
+        if row >= inner.height || column >= inner.width {
+            continue;
+        }
+        for (offset, chunk) in url.as_bytes().chunks(2).enumerate() {
+            let x = inner.x + column + (offset as u16 * 2);
+            if x >= inner.right() {
+                break;
+            }
+            let visible = std::str::from_utf8(chunk).unwrap_or("");
+            let symbol = format!("\x1b]8;;{url}\x07{visible}\x1b]8;;\x07");
+            frame.buffer_mut()[(x, inner.y + row)].set_symbol(&symbol);
+        }
+    }
+}
+
+fn metadata_line<'a>(label: &str, value: &'a str) -> (Line<'a>, Vec<(u16, String)>) {
+    let mut spans = Vec::new();
+    let mut column;
+    if !label.is_empty() {
+        spans.push(Span::styled(
+            format!("{label}: "),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        ));
+        column = label.len() as u16 + 2;
+    } else {
+        spans.push(Span::raw("  "));
+        column = 2;
+    }
+    let mut links = Vec::new();
+    for (text, link) in link_parts(value) {
+        let style = if link {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::UNDERLINED)
+        } else {
+            Style::default()
+        };
+        if link {
+            links.push((column, text.to_string()));
+        }
+        spans.push(Span::styled(text, style));
+        column = column.saturating_add(text.len() as u16);
+    }
+    (Line::from(spans), links)
+}
+
+fn link_parts(value: &str) -> Vec<(&str, bool)> {
+    let mut parts = Vec::new();
+    let mut rest = value;
+    while let Some(start) = rest.find("https://").or_else(|| rest.find("http://")) {
+        if start > 0 {
+            parts.push((&rest[..start], false));
+        }
+        let tail = &rest[start..];
+        let end = tail.find(char::is_whitespace).unwrap_or(tail.len());
+        let (url, remaining) = tail.split_at(end);
+        parts.push((url.trim_end_matches([',', '.', ')', ']', ';']), true));
+        let trimmed = url.trim_end_matches([',', '.', ')', ']', ';']);
+        if trimmed.len() < url.len() {
+            parts.push((&url[trimmed.len()..], false));
+        }
+        rest = remaining;
+    }
+    if !rest.is_empty() {
+        parts.push((rest, false));
+    }
+    parts
 }
 
 fn draw_agenda_list(

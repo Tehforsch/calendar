@@ -36,10 +36,19 @@ pub struct CalendarEvent {
     pub all_day: bool,
     pub calendar: String,
     pub source: PathBuf,
+    /// The original VEVENT properties, retained for the agenda detail view.
+    pub metadata: Vec<EventMetadata>,
     recurrence: Option<Recurrence>,
     exclusions: Vec<Timestamp>,
     recurrence_id: Option<Timestamp>,
     cancelled: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct EventMetadata {
+    pub name: String,
+    pub parameters: BTreeMap<String, String>,
+    pub value: String,
 }
 
 impl CalendarEvent {
@@ -223,6 +232,7 @@ struct Recurrence {
     by_days: Vec<ByDay>,
     by_month_days: Vec<i8>,
     by_months: Vec<i8>,
+    by_set_positions: Vec<i16>,
 }
 
 #[derive(Debug, Clone)]
@@ -291,7 +301,7 @@ impl Recurrence {
             return false;
         }
 
-        match self.frequency {
+        let frequency_matches = match self.frequency {
             Frequency::Daily => {
                 days_between(master, date).is_some_and(|days| days % self.interval == 0)
             }
@@ -321,7 +331,44 @@ impl Recurrence {
                     || date.day() == master.day();
                 year_delta >= 0 && year_delta % self.interval == 0 && default_month && default_day
             }
+        };
+        frequency_matches && self.matches_set_position(date, master)
+    }
+
+    fn matches_set_position(&self, date: Date, master: Date) -> bool {
+        if self.by_set_positions.is_empty() {
+            return true;
         }
+        let candidates = match self.frequency {
+            Frequency::Monthly => (1..=date.days_in_month())
+                .filter_map(|day| Date::new(date.year(), date.month(), day).ok())
+                .filter(|candidate| self.matches_filters(*candidate))
+                .collect::<Vec<_>>(),
+            // BYSETPOS is overwhelmingly used with monthly rules. Keep other
+            // frequencies conservative until their complete period semantics
+            // (including WKST) are implemented.
+            _ => return true,
+        };
+        self.by_set_positions.iter().any(|position| {
+            let index = if *position > 0 {
+                usize::try_from(*position - 1).ok()
+            } else {
+                usize::try_from(candidates.len() as i64 + i64::from(*position)).ok()
+            };
+            index
+                .and_then(|index| candidates.get(index))
+                .is_some_and(|candidate| *candidate == date)
+        }) && date >= master
+    }
+
+    fn matches_filters(&self, date: Date) -> bool {
+        (self.by_months.is_empty() || self.by_months.contains(&date.month()))
+            && (self.by_month_days.is_empty()
+                || self.by_month_days.iter().any(|day| {
+                    (*day > 0 && date.day() == *day)
+                        || (*day < 0 && date.day() == date.days_in_month() + 1 + *day)
+                }))
+            && (self.by_days.is_empty() || self.by_days.iter().any(|by_day| by_day.matches(date)))
     }
 }
 
@@ -847,6 +894,14 @@ fn parse_event(
         all_day: start.all_day,
         calendar: calendar.to_string(),
         source: source.to_path_buf(),
+        metadata: properties
+            .iter()
+            .map(|property| EventMetadata {
+                name: property.name.clone(),
+                parameters: property.params.clone(),
+                value: unescape_text(&property.value),
+            })
+            .collect(),
         recurrence,
         exclusions,
         recurrence_id,
@@ -895,6 +950,16 @@ fn parse_recurrence(property: &Property, display_timezone: TimeZone) -> Result<R
         .unwrap_or_default();
     let by_month_days = parse_number_list(parts.get("BYMONTHDAY").copied())?;
     let by_months = parse_number_list(parts.get("BYMONTH").copied())?;
+    let by_set_positions = parts
+        .get("BYSETPOS")
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::parse)
+                .collect::<Result<Vec<i16>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
     Ok(Recurrence {
         frequency,
         interval,
@@ -903,6 +968,7 @@ fn parse_recurrence(property: &Property, display_timezone: TimeZone) -> Result<R
         by_days,
         by_month_days,
         by_months,
+        by_set_positions,
     })
 }
 
@@ -1258,6 +1324,37 @@ mod tests {
             event
                 .occurrences_on(jiff::civil::date(2026, 8, 11), &TimeZone::UTC)
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn monthly_by_set_position_does_not_expand_every_week() {
+        let input = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:monthly-setpos\r\nDTSTART:20260609T100000Z\r\nDTEND:20260609T110000Z\r\nRRULE:FREQ=MONTHLY;BYDAY=TU;BYSETPOS=2;COUNT=2\r\nSUMMARY:Monthly meeting\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let event = parse_ics(
+            input,
+            Path::new("/calendar/monthly.ics"),
+            Path::new("/calendar"),
+            TimeZone::UTC,
+        )
+        .unwrap()
+        .remove(0);
+
+        assert_eq!(
+            event
+                .occurrences_on(jiff::civil::date(2026, 6, 9), &TimeZone::UTC)
+                .len(),
+            1
+        );
+        assert!(
+            event
+                .occurrences_on(jiff::civil::date(2026, 6, 16), &TimeZone::UTC)
+                .is_empty()
+        );
+        assert_eq!(
+            event
+                .occurrences_on(jiff::civil::date(2026, 7, 14), &TimeZone::UTC)
+                .len(),
+            1
         );
     }
 
