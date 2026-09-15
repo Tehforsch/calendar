@@ -681,7 +681,7 @@ impl CalendarStore {
         let filename = format!("{}.ics", uid.trim_end_matches("@calendar"));
         let path = target.join(filename);
         let now = jiff::Timestamp::now().to_zoned(TimeZone::UTC);
-        let lines = [
+        let mut lines = vec![
             "BEGIN:VCALENDAR".to_string(),
             "VERSION:2.0".to_string(),
             "PRODID:-//calendar-tui//EN".to_string(),
@@ -692,9 +692,9 @@ impl CalendarStore {
             start,
             end,
             format!("SUMMARY:{}", escape_text(summary.trim())),
-            "END:VEVENT".to_string(),
-            "END:VCALENDAR".to_string(),
         ];
+        lines.extend(reminder_components(summary));
+        lines.extend(["END:VEVENT".to_string(), "END:VCALENDAR".to_string()]);
         let body = lines
             .iter()
             .map(|line| fold_content_line(line))
@@ -708,6 +708,21 @@ impl CalendarStore {
             .wrap_err_with(|| format!("committing event {}", path.display()))?;
         Ok(path)
     }
+}
+
+fn reminder_components(summary: &str) -> Vec<String> {
+    ["-P1D", "-PT1H"]
+        .into_iter()
+        .flat_map(|trigger| {
+            [
+                "BEGIN:VALARM".to_string(),
+                "ACTION:DISPLAY".to_string(),
+                format!("DESCRIPTION:{}", escape_text(summary.trim())),
+                format!("TRIGGER:{trigger}"),
+                "END:VALARM".to_string(),
+            ]
+        })
+        .collect()
 }
 
 fn editable_event_properties(summary: &str, timing: EventTiming) -> Result<Vec<String>> {
@@ -814,14 +829,17 @@ fn parse_ics(
 
     let mut events = Vec::new();
     let mut in_event = false;
+    let mut nested_components = 0;
     let mut current = Vec::new();
     for property in properties {
         match (property.name.as_str(), property.value.as_str()) {
-            ("BEGIN", "VEVENT") => {
+            ("BEGIN", "VEVENT") if !in_event => {
                 in_event = true;
+                nested_components = 0;
                 current.clear();
             }
-            ("END", "VEVENT") if in_event => {
+            ("BEGIN", _) if in_event => nested_components += 1,
+            ("END", "VEVENT") if in_event && nested_components == 0 => {
                 if let Some(event) =
                     parse_event(&current, source, &calendar, display_timezone.clone())?
                 {
@@ -830,7 +848,8 @@ fn parse_ics(
                 in_event = false;
                 current.clear();
             }
-            _ if in_event => current.push(property),
+            ("END", _) if in_event && nested_components > 0 => nested_components -= 1,
+            _ if in_event && nested_components == 0 => current.push(property),
             _ => {}
         }
     }
@@ -1231,6 +1250,30 @@ mod tests {
         assert_eq!(events[0].summary, "A long title");
         assert_eq!(events[0].calendar, "Personal");
         assert!(events[1].all_day);
+    }
+
+    #[test]
+    fn excludes_nested_alarm_properties_from_event_metadata() {
+        let input = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:one\r\nDTSTART:20260607T130000Z\r\nDTEND:20260607T140000Z\r\nSUMMARY:Meeting\r\nLOCATION:Office\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Meeting\r\nTRIGGER:-PT1H\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let event = parse_ics(
+            input,
+            Path::new("/calendar/event.ics"),
+            Path::new("/calendar"),
+            TimeZone::UTC,
+        )
+        .unwrap()
+        .remove(0);
+
+        assert!(
+            event
+                .metadata
+                .iter()
+                .any(|property| property.name == "LOCATION")
+        );
+        assert!(event.metadata.iter().all(|property| !matches!(
+            property.name.as_str(),
+            "BEGIN" | "END" | "ACTION" | "DESCRIPTION" | "TRIGGER"
+        )));
     }
 
     #[test]

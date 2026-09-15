@@ -57,7 +57,8 @@ sun 5pm
 
 A time by itself in the exact end field uses the start date; if it is earlier
 than the start time, it means the following day. Each saved appointment is a
-new, standard VCALENDAR file, ready for the CalDAV sync tool to upload.
+new, standard VCALENDAR file, ready for the CalDAV sync tool to upload. New
+appointments include display reminders one day and one hour before their start.
 
 Existing timed and all-day events may use local, UTC, or named IANA timezones.
 Common daily, weekly, monthly, and yearly `RRULE`s are expanded in the views,

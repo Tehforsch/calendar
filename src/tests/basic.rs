@@ -327,6 +327,10 @@ fn adding_an_event_uses_the_dialog_and_writes_an_ics_file() {
     let body = std::fs::read_to_string(written[0].path()).unwrap();
     assert!(body.contains("SUMMARY:Project kickoff"));
     assert!(body.contains("DTSTART;TZID=UTC:20260607T130000"));
+    assert_eq!(body.matches("BEGIN:VALARM").count(), 2);
+    assert!(body.contains("TRIGGER:-P1D"));
+    assert!(body.contains("TRIGGER:-PT1H"));
+    assert_eq!(body.matches("DESCRIPTION:Project kickoff").count(), 2);
 }
 
 #[test]
@@ -363,6 +367,9 @@ fn empty_time_and_duration_create_an_all_day_event() {
     let body = std::fs::read_to_string(written.path()).unwrap();
     assert!(body.contains("DTSTART;VALUE=DATE:20260601"));
     assert!(body.contains("DTEND;VALUE=DATE:20260602"));
+    assert_eq!(body.matches("BEGIN:VALARM").count(), 2);
+    assert!(body.contains("TRIGGER:-P1D"));
+    assert!(body.contains("TRIGGER:-PT1H"));
 }
 
 #[test]
